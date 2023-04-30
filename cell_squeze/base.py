@@ -1,4 +1,5 @@
 import os
+import random
 from typing import Any
 from scipy.sparse import csr_matrix, csc_matrix,coo_matrix, save_npz, load_npz
 from scipy.io import mmwrite, mmread
@@ -41,8 +42,13 @@ class GeneMatrixSerializer:
     def deserialize(self, file_path: str):
         np.load_npz
 
-
-
+    def sample(self):
+        m = self.gene_matrix
+        return m.getcol(random.randint(0,m.shape[1])).getrow(random.randint(0,m.shape[0])).todense().var()
+    
+    def sample_n(self, n):
+        samples = [self.sample() for _ in range(n)]
+        return np.mean(samples), np.std(samples)
 
 
 def main():
