@@ -5,17 +5,18 @@ import scipy.io
 import scipy
 from scipy.sparse import csc_matrix
 from matplotlib import pyplot as plt
-
+from pathlib import Path
+from tqdm.auto import tqdm
 from argparse import ArgumentParser
 from base import *
-from sklearn.cluster import SpectralBiclustering
+from sklearn.cluster import SpectralBiclustering, SpectralCoclustering
 from sklearn.metrics import consensus_score
-
+import random as default_random
 
 import numpy as np
 from scipy.sparse import random
 
-
+# %% 
 def sparsity_rate(sparse_matrix):
     #nnz = sparse_matrix.nnz # number of nonzero elements in the matrix
     nnz = np.count_nonzero(sparse_matrix)
@@ -150,83 +151,179 @@ def make_nonzero_matrix(M):
 #     main()
 # %%
 
-orig_data = pd.read_csv('../data/gse61533_htseq.csv', index_col='ID').values
+#orig_data = pd.read_csv('../data/gse61533_htseq.csv', index_col='ID').values
 
-my_data = make_nonzero_matrix(orig_data)[:1000, :]
-my_data = make_nonzero_matrix(my_data)
+brain_tumor_path = Path("/Users/styx97/Projects/cell-squeeze/data/Brain_Tumor_3p_raw_feature_bc_matrix/raw_feature_bc_matrix")
+matrix_path = brain_tumor_path / "matrix.mtx.gz"
 
-# %%
-print(sparsity_rate(my_data)   )
-my_data = np.where(my_data > 0, 1, 0)
-print(sparsity_rate(my_data))
+mat = GeneMatrixSerializer(scipy.io.mmread(matrix_path)).gene_matrix.tocsc()
 
-# %% 
-
-# print(my_data.shape) 
-n = my_data.shape[0]
-m = my_data.shape[1]
-
-print((n + m) / (n*m))
-
-print(np.count_nonzero(my_data)/(n*m))
-
-plt.spy(my_data)
-plt.show()
-
-# %%
-N_ROW_CLUSTERS = 5
-N_COL_CLUSTERS = 5
-
-model = SpectralBiclustering(n_clusters=(N_ROW_CLUSTERS, N_COL_CLUSTERS), random_state=0)
-model.fit(my_data)
-row_perm = np.argsort(model.row_labels_)
-col_perm = np.argsort(model.column_labels_)
-fit_data = my_data[row_perm]
-fit_data = fit_data[:, col_perm]
-plt.spy(fit_data)
-
-# %%  
-# plt.(
-#     np.outer(np.sort(model.row_labels_) + 1, np.sort(model.column_labels_) + 1),
-#     cmap=plt.cm.Blues,
-# )
-# plt.title("Checkerboard structure of rearranged data")
+print(mat.get_shape())
 
 # %% 
+mat.get_shape()
+subsample_shape = 10000
 
+row_start_range = list(range(1, mat.get_shape()[0] - subsample_shape))
+col_start_range = list(range(1, mat.get_shape()[1] - subsample_shape)) 
 
+# %%
+def create_biclusters(matrix, n_row_clusters, n_col_clusters):
+        model = SpectralBiclustering(n_clusters=(n_row_clusters, n_col_clusters), random_state=0)
+        #model = SpectralCoclustering(n_clusters=5, random_state=0)
+        model.fit(matrix)
+        row_perm = np.argsort(model.row_labels_)
+        col_perm = np.argsort(model.column_labels_)
+        fit_data = matrix[row_perm]
+        fit_data = fit_data[:, col_perm]
+        return fit_data, row_perm, col_perm, model
 
+def bits_needed(range_: int):
+        return np.ceil(np.log2(range_+1))
+
+def mat_range(mat):
+    return np.max(mat)-np.min(mat) + 1
 
 
 # %%
-row_labels = model.row_labels_
-col_labels = model.column_labels_
-
-row_cluster_spans = []
-col_cluster_spans = []
-
-labels_R = row_labels[row_perm]
-labels_C = col_labels[col_perm]
-
-print("Sparsity rate of the original matrix: ", sparsity_rate(my_data))
-print("Range of values of the original matrix: ", np.max(my_data)-np.min(my_data) + 1)
-
-for i_row in range(N_ROW_CLUSTERS):
-    for j_col in range(N_COL_CLUSTERS):
-        row_spans = np.where(labels_R == i_row)[0]
-        col_spans = np.where(labels_C == j_col)[0]
-        row_cluster_spans.append(row_spans)
-        col_cluster_spans.append(col_spans)
-        mat_slice = my_data[row_spans, :][:, col_spans]
-        print(f"Sparsity rate: [{i_row},{j_col}]: {sparsity_rate(mat_slice):.3f}\tShape: {mat_slice.shape}")
-        print(f"Range of values: [{i_row},{j_col}]: {np.max(mat_slice)-np.min(mat_slice) + 1}")
+num_runs = 10
+run_results = {}
 
 
+for sample_run in tqdm(range(num_runs)): 
+    print("run: ", sample_run)
+    temp_results = {}
+    row_start, col_start = (default_random.choice(row_start_range), default_random.choice(col_start_range))
+    submat = mat[row_start:row_start + subsample_shape, col_start: col_start + subsample_shape].A
+    #orig_data = pd.read_csv('../data/gse61533_htseq.csv', index_col='ID').values
+    #my_data = make_nonzero_matrix(orig_data)[:500, :]
+    my_data = make_nonzero_matrix(submat)
+    plt.spy(my_data, markersize=0.3, aspect='auto')
+    plt.title("Original Data")
+    plt.show()
+
+    #print(sparsity_rate(my_data))
+    bin_data = np.where(my_data > 0, 1, 0)
+    #print(sparsity_rate(my_data))
+    temp_results["sparsity_rate_orig"] = sparsity_rate(my_data)
+
+    # print(my_data.shape) 
+    n = my_data.shape[0]
+    m = my_data.shape[1]
+
+    #print((n + m) / (n*m))
+
+    #print(np.count_nonzero(my_data)/(n*m))
+
+    #plt.spy(my_data)
+    #plt.show()
+
+    # plt.(
+    #     np.outer(np.sort(model.row_labels_) + 1, np.sort(model.column_labels_) + 1),
+    #     cmap=plt.cm.Blues,
+    # )
+    # plt.title("Checkerboard structure of rearranged data")
+    row_indices = np.argsort(np.sum(bin_data, axis=1))
+    col_indices = np.argsort(np.sum(bin_data, axis=0))
+
+    # permute rows and columns using row_indices and col_indices
+    permuted_data = my_data[row_indices, :][:, col_indices]
+    plt.spy(permuted_data, markersize=0.4, aspect='auto')
+    plt.title("Permuted data")
+    plt.show()
+
+    N_ROW_CLUSTERS = 5
+    N_COL_CLUSTERS = 5 
+
+    fit_data, row_perm, col_perm, model = create_biclusters(permuted_data, N_ROW_CLUSTERS, N_COL_CLUSTERS)
+    #plt.spy(fit_data)
+
+    plt.spy(fit_data, markersize=0.3, aspect='auto')
+    plt.title("Biclustered data")
+    plt.show()
+
+    row_labels = model.row_labels_
+    col_labels = model.column_labels_
+
+    row_cluster_spans = []
+    col_cluster_spans = []
+
+    labels_R = row_labels[row_perm]
+    labels_C = col_labels[col_perm]
+
+    print("Sparsity rate of the original matrix: ", sparsity_rate(fit_data))
+    print("Range of values of the original matrix: ", np.max(fit_data)-np.min(fit_data) + 1)
+    temp_results["sparsity_rate_whole"] = sparsity_rate(fit_data)
+    temp_results["original_range"] = np.max(fit_data)-np.min(fit_data) + 1
+
+    sparsity_rates = []
+    cluster_sizes = [] # submatrix size
+    cluster_ranges = [] # max - min + 1 for that submatrix
+    cluster_nonzeros = [] # number of nonzero elements in that submatrix
+    cluster_shapes = []
+
+    for i_row in range(N_ROW_CLUSTERS):
+        for j_col in range(N_COL_CLUSTERS):
+            row_spans = np.where(labels_R == i_row)[0]
+            col_spans = np.where(labels_C == j_col)[0]
+            row_cluster_spans.append(row_spans)
+            col_cluster_spans.append(col_spans)
+            mat_slice = fit_data[row_spans, :][:, col_spans]
+            sparsity_rates.append(sparsity_rate(mat_slice))
+            cluster_sizes.append(mat_slice.shape[0]*mat_slice.shape[1])
+            cluster_shapes.append(mat_slice.shape)
+            cluster_ranges.append(np.max(mat_slice)-np.min(mat_slice) + 1)
+            cluster_nonzeros.append(np.count_nonzero(mat_slice))
+            # print(f"Sparsity rate: [{i_row},{j_col}]: {sparsity_rate(mat_slice):.3f}\tShape: {mat_slice.shape}")
+            # print(f"Range of values: [{i_row},{j_col}]: {np.max(mat_slice)-np.min(mat_slice) + 1}")
+
+    #plt.hist(sparsity_rates, bins=30)
+
+
+    #plt.scatter(cluster_sizes, sparsity_rates)
+    #plt.xlabel("Cluster size")
+    #plt.ylabel("Sparsity rate")
+    #plt.show()
+
+
+
+    assert(len(sparsity_rates) == len(cluster_sizes))
+    
+    total_nz_counts = np.sum(bin_data)
+    N_COORDS = 2
+    index_bits = bits_needed(max(bin_data.shape))
+    mm_baseline_size = total_nz_counts * bits_needed(mat_range(fit_data))
+    mm_baseline_size += total_nz_counts * (N_COORDS * bits_needed(index_bits))
+
+    print("Baseline size: ", mm_baseline_size)
+
+    temp_results["mm_baseline_size"] = mm_baseline_size
+    bic_mm_size = 0
+    for cluster_nz_count, cluster_range, cluster_shape in zip(cluster_nonzeros, cluster_ranges, cluster_shapes):
+        bic_mm_size += cluster_nz_count * bits_needed(cluster_range)
+        index_bits = bits_needed(max(cluster_shape))
+        bic_mm_size += cluster_nz_count * (N_COORDS * bits_needed(index_bits))
+    bic_mm_size += N_ROW_CLUSTERS * bits_needed(N_ROW_CLUSTERS)
+    bic_mm_size += N_COL_CLUSTERS * bits_needed(N_COL_CLUSTERS)
+    
+    temp_results["bic_mm_size"] = bic_mm_size
+    print("Biclustering+MM size: ", bic_mm_size)
+    
+    plt.hist(cluster_ranges, bins=30, ec='black')
+    plt.show()
+
+    run_results[sample_run] = temp_results
+    print("/n/n")
 
 # %%
 
-path = "../data/1k_hgmm_3p_LT_raw_feature_bc_matrix.tar.gz"
+df = pd.DataFrame.from_dict(run_results, orient="index")
+
+# %%
+df['difference'] = df['mm_baseline_size'] - df['bic_mm_size']
+df['difference_percent'] = df['difference'] / df['mm_baseline_size'] * 100
+print(df['difference_percent'].mean(), df['difference_percent'].std())
 
 
-mat = GeneMatrixSerializer(scipy.io.mmread(path))
+# %%
 
