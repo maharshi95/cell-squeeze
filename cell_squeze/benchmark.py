@@ -58,93 +58,77 @@ def make_nonzero_matrix(M):
     return M
 
 # %%
-# def main():
+#
+def main():
     args = setup_argparse().parse_args()
     datapath = args.datapath
 
     matrix_dirs = glob.glob(datapath+"*/raw_feature_bc_matrix")
 
-#     names = []
-#     dense_elems = []
-#     non_zero_elems = []
-#     uncomp_size = []
-#     csc_size = []
-#     csr_size = []
-#     mtx_size = []
+    names = []
+    dense_elems = []
+    non_zero_elems = []
+    uncomp_size = []
+    csc_size = []
+    coo_size = []
+    csr_size = []
+    mtx_size = []
 
-#     temp_path_npz= "temp.npz"
-#     temp_path_mtx = "temp.mtx"
+    ds = []
 
+    temp_path_npz= "temp.npz"
+    temp_path_mtx = "temp.mtx"
+    temp_path_npy = "temp.npy"
 
-    #my_data = np.genfromtxt('../data/gse61533_htseq.csv', delimiter=',', skip_header=1, usecols=list(range(1, 97)))[:100, :]
-    # orig_data = pd.read_csv('../data/gse61533_htseq.csv', index_col='ID').values
-    # my_data = make_nonzero_matrix(orig_data)[:100, :]
-    # my_data = make_nonzero_matrix(my_data)
-    # # print(my_data.shape) 
-
-    # plt.matshow(my_data, cmap=plt.cm.Blues)
-    # plt.savefig("toy_heatmap.png")
-    
-    # model = SpectralBiclustering(n_clusters=(5, 5), random_state=0)
-    # model.fit(my_data)
-    # print(model.column_labels_)
-    # fit_data = my_data[np.argsort(model.row_labels_)]
-    # fit_data = fit_data[:, np.argsort(model.column_labels_)]
-    # plt.matshow(fit_data, cmap=plt.cm.Blues)
-    # plt.savefig("toy_heatmap_fit.png")
-    # assert False
-
+    subsample_shape = 10000
 
     for path in matrix_dirs:
 
-        print(path)
         mat = GeneMatrixSerializer(scipy.io.mmread(os.path.join(path, "matrix.mtx.gz")))
-        n = mat.gene_matrix.get_shape()[0]
-        m = mat.gene_matrix.get_shape()[1]
+       
+        m = mat.gene_matrix.tocsc().copy()
 
-    #     nonzero_indices = scipy.sparse.find(mat.gene_matrix)
-    #     num_nonzero = len(nonzero_indices[0])
-    #     sp = sparsity_rate(mat.gene_matrix)
+        row_start_range = list(range(1, m.get_shape()[0] - subsample_shape))
+        col_start_range = list(range(1, m.get_shape()[1] - subsample_shape)) 
 
-    #     rand_indices = np.random.choice(num_nonzero, int(0.1*num_nonzero), replace=False)
-    #     sampled_values = nonzero_indices[2][rand_indices]
-    #     print(np.mean(sampled_values), np.std(sampled_values), sp)
+        for _ in range(5):
+             
 
-    #     toy = generate_sparse_matrix(1000, 1000, 0.4, np.mean(sampled_values), np.std(sampled_values))
-
-
-    #     model = SpectralBiclustering(n_clusters=(10, 5), random_state=0)
-    #     model.fit(toy)
-
-    #     plt.matshow(toy.toarray(), cmap=plt.cm.Blues)
-    #     plt.savefig("toy_heatmap.png")
-
-    #     fit_data = toy.toarray()[np.argsort(model.row_labels_)]
-    #     fit_data = fit_data[:, np.argsort(model.column_labels_)]
-    #     plt.matshow(fit_data, cmap=plt.cm.Blues)
-    #     plt.savefig("toy_heatmap_fit.png")
+            row_start, col_start = (default_random.choice(row_start_range), default_random.choice(col_start_range))
+            mat.gene_matrix = m[row_start:row_start + subsample_shape, col_start: col_start + subsample_shape].tocoo()
+            
 
 
+            names.append(path[len(datapath):])
 
-        # names.append(path[len(datapath):])
 
+            dense_elems.append(mat.gene_matrix.get_shape()[0]*mat.gene_matrix.get_shape()[1])
+            non_zero_elems.append(mat.gene_matrix.count_nonzero())
 
-        # dense_elems.append(mat.gene_matrix.get_shape()[0]*mat.gene_matrix.get_shape()[1])
-        # non_zero_elems.append(mat.gene_matrix.count_nonzero())
+            mtx_size.append(mat.mtxSerialize(temp_path_mtx))
 
-        # mtx_size.append(mat.mtxSerialize(temp_path_mtx))
-        # csc_size.append(mat.cscSerialize(temp_path_npz))
-        # csr_size.append(mat.csrSerialize(temp_path_npz))
+            csc_size.append(mat.cscSerialize(temp_path_npz))
 
-        #print(mat.sample_n(1000))
+            csr_size.append(mat.csrSerialize(temp_path_npz))
+
+            coo_size.append(mat.cooSerialize(temp_path_npz))
+
+            np.save(temp_path_npy, mat.gene_matrix.A)
+            uncomp_size.append(os.stat(temp_path_npy).st_size)
+
+            ds.append(path)
 
 
 
-    # os.remove(temp_path_npz)
-    # os.remove(temp_path_mtx)
+    os.remove(temp_path_npz)
+    os.remove(temp_path_mtx)
+    os.remove(temp_path_npy)
 
-    # results = pd.DataFrame.from_dict({"name":names, "num_dense_elems":dense_elems, "num_sparse_elems":non_zero_elems,  "csc":csc_size, "csr":csr_size, "mtx":mtx_size})
-    # results.to_csv("results.csv")
+    results = pd.DataFrame.from_dict({"name":names, "num_dense_elems":dense_elems, "num_sparse_elems":non_zero_elems,  "csc":csc_size, "csr":csr_size, "coo":coo_size, "mtx":mtx_size, "ds":ds, "uncomp":uncomp_size})
+
+    results.to_csv("../outputs/baseline_results.csv")
+
+
 
 
 # if __name__ == "__main__":

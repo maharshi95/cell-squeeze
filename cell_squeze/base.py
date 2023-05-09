@@ -35,6 +35,10 @@ class GeneMatrixSerializer:
         np.savez_compressed(file_path, self.gene_matrix.tocsc())
         return os.stat(file_path).st_size
     
+    def cooSerialize(self, file_path: str):
+        np.savez_compressed(file_path, self.gene_matrix)
+        return os.stat(file_path).st_size
+    
     def mtxSerialize(self, file_path: str):
         mmwrite(file_path, self.gene_matrix)
         return os.stat(file_path).st_size
