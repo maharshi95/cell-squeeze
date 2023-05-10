@@ -32,6 +32,7 @@ def setup_argparse() -> ArgumentParser:
     parser.add_argument("-n", "--num-files",type=int, required=True)
     parser.add_argument("-mu", type=float, required=False)
     parser.add_argument("-si", type=float, required=False)
+    parser.add_argument("-ep", type=float, required=False)
     parser.add_argument("-s", "--sparsity",type=float, required=False, nargs='+')
     return parser
 
@@ -47,7 +48,12 @@ def save(mat, num, args, sparsity=None):
         base_path = os.path.join(base_path,args.type)
         if not os.path.exists(base_path):
             os.mkdir(base_path)
-        path = os.path.join(base_path,"_".join([str(x) for x in [args.r,args.c,args.mu,args.si,sparsity,num]])+".npz")
+        
+        if args.ep is not None:
+            path = os.path.join(base_path,"_".join([str(x) for x in [args.r,args.c,args.ep, args.mu,args.si,sparsity,num]])+".npz")
+            # path = os.path.join(base_path,"_".join([str(x) for x in [args.r,args.ep,num]])+".npz")
+        else:
+            path = os.path.join(base_path,"_".join([str(x) for x in [args.r,args.c,args.mu,args.si,sparsity,num]])+".npz")
     
     
     np.savez_compressed(path, data=mat.data, indices=mat.indices,
@@ -90,15 +96,59 @@ def randomly_insert_vals(r,c,vals, pts):
     rows,cols = zip(*pts[indicies])
     return csc_matrix((vals, (rows, cols)), shape=(r, c))
 
-def synthetic(args):
+def generate_normal(r,c,mu,sigma,spartisy,pts):
+    vals = generate_normal_vals(r,c,mu,sigma,spartisy)
+    return randomly_insert_vals(r, c, vals, pts)
+
+
+def synthetic_normal(args):
     pts = np.array(list(product(list(range(args.r)), list(range(args.c)))))
     
     for run in tqdm(range(args.num_files)):
         for sparsity in args.sparsity:
-            vals = generate_normal_vals(args.r, args.c, args.mu, args.si,sparsity)
-            mat = randomly_insert_vals(args.r, args.c, vals, pts)
+            mat = generate_normal(args.r, args.c, args.mu, args.si,sparsity,pts)
 
             save(mat, run, args, sparsity)
+
+def generate_w_condition_number(m,epsilon,initialization=None):
+    # https://math.stackexchange.com/questions/4270330/can-i-generate-a-random-matrix-with-a-given-condition-number-using-the-infinite
+
+    if initialization is not None:
+        E = initialization
+    else:
+        # Generate a random matrix with entries uniformly distributed in (0,1)
+        E = np.random.rand(m,m)
+    # Compute the sum of the absolute values of E along each row
+    w = np.sum(np.abs(E), axis=1)
+    # Scale E to ensure that the infinity norm is epsilon
+    E = epsilon * np.linalg.solve(np.diag(w), E)
+    # Construct the final matrix
+    A = np.eye(m) + E
+
+    abs_s = np.abs(np.linalg.svd(A)[1])
+
+    abs_s = np.abs(np.linalg.svd(A)[1])
+
+    return A, np.max(abs_s)/np.min(abs_s)
+
+def synthetic_condition(args):
+    assert(args.r ==args.c); "Not sure how to control condition number for non-square matrix"
+    pts = np.array(list(product(list(range(args.r)), list(range(args.c)))))
+
+    m = args.r
+    epsilon = args.ep-1 #I'm observing for some reason that the condition number generated is one more than epsilon??
+
+    for run in tqdm(range(args.num_files)):
+        for sparsity in args.sparsity:
+            init = generate_normal(args.r, args.c, args.mu, args.si,sparsity,pts)
+            mat, _ = generate_w_condition_number(m,epsilon,init.A)
+            mat = csc_matrix(mat)
+            save(mat, run, args,sparsity)
+
+
+
+
+
 
 
 def main():
@@ -106,8 +156,12 @@ def main():
 
     if args.type == "original":
         original(args)
+    elif args.ep is not None:
+        synthetic_condition(args)
+    elif args.mu is not None and args.std is not None:
+        synthetic_normal(args)
     else:
-        synthetic(args)
+        print("unknown synthetic config")
 
     
 
