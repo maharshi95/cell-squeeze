@@ -152,8 +152,8 @@ row_start_range = list(range(1, mat.get_shape()[0] - subsample_shape))
 col_start_range = list(range(1, mat.get_shape()[1] - subsample_shape)) 
 
 # %%
-def create_biclusters(matrix, n_row_clusters, n_col_clusters):
-        model = SpectralBiclustering(n_clusters=(n_row_clusters, n_col_clusters), random_state=0)
+def create_biclusters(matrix, n_row_clusters, n_col_clusters, n_init):
+        model = SpectralBiclustering(n_clusters=(n_row_clusters, n_col_clusters), random_state=0, n_init=n_init)
         #model = SpectralCoclustering(n_clusters=5, random_state=0)
         model.fit(matrix)
         row_perm = np.argsort(model.row_labels_)
@@ -171,13 +171,23 @@ def mat_range(mat):
 
 # %%
 num_runs = 10
-run_results = {}
 
+sample_row_col_indices = []
+
+default_random.seed(42)
+for i in range(num_runs):
+    row_start, col_start = (default_random.choice(row_start_range), default_random.choice(col_start_range))
+    sample_row_col_indices.append((row_start, col_start))
+    
+print(sample_row_col_indices)
+
+# %% 
+run_results = {}
 
 for sample_run in tqdm(range(num_runs)): 
     print("run: ", sample_run)
     temp_results = {}
-    row_start, col_start = (default_random.choice(row_start_range), default_random.choice(col_start_range))
+    row_start, col_start = sample_row_col_indices[sample_run]
     submat = mat[row_start:row_start + subsample_shape, col_start: col_start + subsample_shape].A
     #orig_data = pd.read_csv('../data/gse61533_htseq.csv', index_col='ID').values
     #my_data = make_nonzero_matrix(orig_data)[:500, :]
@@ -212,6 +222,7 @@ for sample_run in tqdm(range(num_runs)):
 
     # permute rows and columns using row_indices and col_indices
     permuted_data = my_data[row_indices, :][:, col_indices]
+    permuted_data = my_data # DISABLED PERMUTATION
     plt.spy(permuted_data, markersize=0.4, aspect='auto')
     plt.title("Permuted data")
     plt.show()
@@ -219,7 +230,7 @@ for sample_run in tqdm(range(num_runs)):
     N_ROW_CLUSTERS = 5
     N_COL_CLUSTERS = 5 
 
-    fit_data, row_perm, col_perm, model = create_biclusters(permuted_data, N_ROW_CLUSTERS, N_COL_CLUSTERS)
+    fit_data, row_perm, col_perm, model = create_biclusters(permuted_data, N_ROW_CLUSTERS, N_COL_CLUSTERS, n_init=1)
     #plt.spy(fit_data)
 
     plt.spy(fit_data, markersize=0.3, aspect='auto')
@@ -299,6 +310,8 @@ for sample_run in tqdm(range(num_runs)):
     run_results[sample_run] = temp_results
     print("/n/n")
 
+
+
 # %%
 
 df = pd.DataFrame.from_dict(run_results, orient="index")
@@ -311,3 +324,40 @@ print(df['difference_percent'].mean(), df['difference_percent'].std())
 
 # %%
 
+# display the fit_data matrix with a different color for each cluster 
+# (use the row_labels_ and column_labels_ attributes of the model)
+
+# List 25 colors right now!!!
+all_colors = ['magenta', 'blue', 'red', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'gray', 'black', 'cyan', 'magenta', 'lime', 'olive', 'maroon', 'navy', 'teal', 'aqua', 'gold', 'indigo', 'violet', 'turquoise', 'tan', 'salmon']
+print(len(all_colors))
+import matplotlib as mpl
+# Assign colors to each point in the grid
+for i in range(N_ROW_CLUSTERS):
+    for j in range(N_COL_CLUSTERS):
+        row_spans = np.where(labels_R == i)[0]
+        col_spans = np.where(labels_C == j)[0]
+        plot_data = np.zeros_like(fit_data)
+        for row in row_spans:
+            for col in col_spans:
+                plot_data[row, col] = fit_data[row, col]
+        c = all_colors[i*N_COL_CLUSTERS + j]
+        plt.spy(plot_data, markersize=1, aspect='auto', c=c)
+plt.show()
+
+
+# %%p
+c_label_ids = np.outer(np.sort(model.row_labels_) + 1, np.sort(model.column_labels_) + 1)
+colors = mpl.colors.ListedColormap(['white', 'blue', 'red', 'green', 'yellow', 'orange']).colors
+colors = [colors[i] for i in c_label_ids]
+# %%
+plt.imshow(c_label_ids, cmap=mpl.colors.ListedColormap(['magenta', 'blue', 'red', 'green', 'yellow', 'orange']))
+# %%
+
+
+df = pd.read_csv("../outputs/comparison_results.csv")
+df["difference_percent"] = (df["mm_baseline_size"] - df["bic_mm_size"]) / df['mm_baseline_size'] * 100
+
+# %%
+df["difference_percent"].mean(), df["difference_percent"].std()
+
+# %%
