@@ -33,6 +33,7 @@ def setup_argparse() -> ArgumentParser:
         type=str,
         default="../data/1k_hgmm_3p_LT_raw_feature_bc_matrix/",
     )
+
     parser.add_argument("-o", "--out-path", type=str, default="../prepared/")
     parser.add_argument("-r", type=int, required=True)
     parser.add_argument("-c", type=int, required=True)
@@ -41,11 +42,16 @@ def setup_argparse() -> ArgumentParser:
     parser.add_argument("-si", type=float, required=False)
     parser.add_argument("-ep", type=float, required=False)
     parser.add_argument("-s", "--sparsity", type=float, required=False, nargs="+")
+    parser.add_argument("--seed", type=int, default=42)
     return parser
 
 
 def save(mat, num, args, sparsity=None):
     base_path = args.out_path
+
+    # Create output directory if it doesn't exist
+    os.makedirs(base_path, exist_ok=True)
+
     if args.type == "original":
         base_path = os.path.join(base_path, args.orig_path.split("/")[-2])
         if not os.path.exists(base_path):
@@ -195,6 +201,9 @@ def synthetic_condition(args):
 
 def main():
     args = setup_argparse().parse_args()
+
+    default_random.seed(args.seed)
+    np.random.seed(args.seed)
 
     if args.type == "original":
         original(args)

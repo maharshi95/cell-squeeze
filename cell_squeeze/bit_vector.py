@@ -17,6 +17,15 @@ dtypes = {
     64: np.uint64,
 }
 
+def int_vector_to_long_int(vector, bit_length=64):
+    assert bit_length % 8 == 0, "bit_length must be a multiple of 8"
+    segments = []
+    format = unpack_formats[bit_length]
+    for word in vector:
+        segments.append(struct.pack(format, word))
+    packed = b"".join(segments)
+    return int.from_bytes(packed, byteorder="big")
+
 
 def long_int_to_int_vector(num, bit_length=64):
     # Determine the number of 64-bit integers needed to represent the long int
