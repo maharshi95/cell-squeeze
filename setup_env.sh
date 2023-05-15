@@ -20,10 +20,9 @@ echo "Python Interpreter: $(which python)"
 # Data science packages
 pip install --no-cache numpy pandas scipy einops scikit-learn matplotlib jupyterlab
 
+pip install --no-cache BitVector
+
 pip install --no-cache rich loguru
 
 # XLSX support for pandas
 pip install --no-cache xlrd openpyxl
-
-# conda env creation and installs
-conda create -y -n dpr python=3.10
