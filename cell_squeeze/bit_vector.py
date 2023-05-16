@@ -1,5 +1,6 @@
 # %%
 import struct
+from array import array as parray
 import numpy as np
 from BitVector import BitVector
 
@@ -53,18 +54,9 @@ def long_int_to_int_vector(num, bit_length=64):
     return np.array(word_list, dtype=dtype)
 
 
-def int_vector_to_long_int(vector, bit_length=64):
-    assert bit_length % 8 == 0, "bit_length must be a multiple of 8"
-    segments = []
-    format = unpack_formats[bit_length]
-    for word in vector:
-        segments.append(struct.pack(format, word))
-    packed = b"".join(segments)
-    return int.from_bytes(packed, byteorder="big")
-
-
 class IntVector:
     def __init__(self, num_elements: int, bit_width: int):
+        self.num_elements = num_elements
         self.bit_width = bit_width
         self.bitvec = BitVector(size=num_elements * bit_width)
 
@@ -100,8 +92,20 @@ class IntVector:
         for i in range(len(self)):
             yield self[i]
 
-    def to_numpy(self):
-        return np.array(list(self), dtype=np.uint32)
+    def to_numpy(self, dtype=np.uint32):
+        return np.array(list(self), dtype=dtype)
+
+    @property
+    def word_array(self):
+        return np.array(self.bitvec.vector, dtype=np.uint16)
+
+    @classmethod
+    def from_word_array(cls, word_array: np.ndarray, bitwidth: int, N=None):
+        if N is None:
+            N = word_array.size * 16 // bitwidth
+        intvec = cls(N, bitwidth)
+        intvec.bitvec.vector = parray("H", word_array.astype(np.uint16))
+        return intvec
 
     def bitword_array(self, word_length: int = 32):
         """Return a numpy array of bit words of size word_size.
@@ -127,9 +131,12 @@ class IntVector:
         return np.array(word_list, dtype=dtype)
 
     @classmethod
-    def from_bitword_array(cls, bitword_array: np.ndarray, bit_width: int):
+    def from_bitword_array(
+        cls, bitword_array: np.ndarray, bit_width: int, n_elem=None
+    ) -> "IntVector":
         word_length = np.dtype(bitword_array.dtype).itemsize * 8
-        n_elem = bitword_array.size * word_length // bit_width
+        if n_elem is None:
+            n_elem = bitword_array.size * word_length // bit_width
         intvec = cls(n_elem, bit_width)
         end = intvec.bitvec.length()
         for i, word in enumerate(bitword_array[::-1]):
@@ -179,3 +186,16 @@ if __name__ == "__main__":
     print(b == b2[1 : N + 1])
     # %%
     b.bitvec.byteArray
+
+# %%
+
+
+def change_16_bit_to_32_bit(A):
+    n = (len(A) + 1) // 2
+    B = array.array("Q", [0] * n)
+    for i in range(1, n + 1):
+        h = -(2 * i)
+        B[-i] = A[h + 1]
+        if h >= -len(A):
+            B[-i] += A[h] << 16
+    return B

@@ -80,8 +80,8 @@ class BiClusterMatrixPermuter(MatrixPermuter):
         print("fitting...")
         self.model.fit(matrix)
         print("fitting done")
-        self.row_labels_ = self.model.row_labels_
-        self.col_labels_ = self.model.column_labels_
+        self.row_labels_ = np.array(self.model.row_labels_)
+        self.col_labels_ = np.array(self.model.column_labels_)
         row_perm_ = np.argsort(self.model.row_labels_)
         col_perm_ = np.argsort(self.model.column_labels_)
         permuted_data = matrix[row_perm_][:, col_perm_]
