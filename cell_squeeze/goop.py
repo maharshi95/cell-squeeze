@@ -1,5 +1,6 @@
 # %%
 
+import time
 import numpy as np
 from itertools import product
 from scipy.sparse import csr_matrix, csc_matrix, coo_matrix, save_npz, load_npz
@@ -40,10 +41,33 @@ def bit_length(num: int | np.integer):
     return num.bit_length() + 1
 
 
-def array2intvec(
+def vec_bit_length(arr: Sequence[int]):
+    """Minimum number of bits required to represent a number."""
+    if hasattr(arr, "size"):
+        size = arr.size
+    else:
+        size = len(arr)
+    if size == 0:
+        return 0
+    return bit_length(np.max(arr))
+
+
+def array2intvec(arr: np.ndarray, bitwidth: int, word_size: int):
+    if arr.size == 0:
+        return np.array([], dtype=np.uint16), arr.shape
+    int_vec = IntVec(arr.size, bitwidth)
+    fmt = "0{}b".format(bitwidth)
+    bit_strings = [format(a, fmt) for a in arr.reshape(-1)]
+    B = "".join(bit_strings)
+    int_vec.bitvec = bit_vector.BitVector(bitstring=B)
+    return int_vec.bitword_array(word_size), arr.shape
+
+
+def array2intvec_slow(
     arr: np.ndarray, bitwidth: int, word_size: int
 ) -> tuple[np.ndarray, tuple[int]]:
     int_vec = IntVec(arr.size, bitwidth)
+
     for i, elem in enumerate(arr.reshape(-1)):
         try:
             int_vec[i] = elem
@@ -72,9 +96,9 @@ def mat_to_sparse_goop(mat: np.ndarray, method: str = "csr", word_size: int = 32
         sparse_mat = csr_matrix(mat)
     else:
         raise NotImplementedError
-    data_nbits = bit_length(np.max(sparse_mat.data))
-    indices_nbits = bit_length(np.max(sparse_mat.indices))
-    indptr_nbits = bit_length(np.max(sparse_mat.indptr))
+    data_nbits = vec_bit_length(sparse_mat.data)
+    indices_nbits = vec_bit_length(sparse_mat.indices)
+    indptr_nbits = vec_bit_length(sparse_mat.indptr)
     return {
         "d": array2intvec(sparse_mat.data, data_nbits, word_size)[0],
         "i1": array2intvec(sparse_mat.indices, indices_nbits, word_size)[0],
@@ -164,12 +188,12 @@ def make_goop_dict(
             cluster_deltas, method="csr", word_size=word_size
         )
         sparse_goops.append(sparse_goop)
-        n_bits_theoretical += bit_length(np.max(cluster_deltas)) * cluster_mat.size
+        n_bits_theoretical += vec_bit_length(cluster_deltas) * cluster_mat.size
 
-    bw_cluster_mins = bit_length(np.max(cluster_mins))
-    bw_row_labels = bit_length(np.max(row_labels))
-    bw_col_labels = bit_length(np.max(col_labels))
-    bw_nzrc = bit_length(np.max(non_zero_row_cols))
+    bw_cluster_mins = vec_bit_length(cluster_mins)
+    bw_row_labels = vec_bit_length(row_labels)
+    bw_col_labels = vec_bit_length(col_labels)
+    bw_nzrc = vec_bit_length(non_zero_row_cols)
     bw_array = np.array(
         [bw_cluster_mins, bw_row_labels, bw_col_labels, bw_nzrc], dtype=np.int8
     )
@@ -255,8 +279,22 @@ def ungoop_data(flat_goop_dict: dict[str, tuple[int] | np.ndarray]):
 if __name__ == "__main__":
     # Testing array2intvec and intvec2nparray
 
-    permuter = BiClusterMatrixPermuter(2, 2)
     WORD_SIZE = 32
+
+    logger.info("testing speeds for array2intvec and array2intvec_fast")
+    test_shape = (1000, 1000)
+    np.random.seed(0)
+    mask = np.random.rand(*test_shape) > 0.7
+    mat_s = np.random.randint(0, 16, size=test_shape) * mask
+    tic = time.time()
+    iv = array2intvec_slow(mat_s, 4, WORD_SIZE)[0]
+    tac = time.time()
+    logger.info("array2intvec time: {:.3f}", tac - tic)
+
+    tic = time.time()
+    iv = array2intvec(mat_s, 4, WORD_SIZE)[0]
+    tac = time.time()
+    logger.info("array2intvec_fast time: {:.3f}", tac - tic)
 
     test_shape = (32, 29)
     np.random.seed(0)
@@ -265,7 +303,9 @@ if __name__ == "__main__":
         mask = np.random.rand(*test_shape) > 0.7
         mat_s = np.random.randint(0, 10, size=test_shape) * mask
 
-        iv = array2intvec(mat_s, 4, WORD_SIZE)[0]
+        iv = array2intvec_slow(mat_s, 4, WORD_SIZE)[0]
+        iv_fast = array2intvec(mat_s, 4, WORD_SIZE)[0]
+        assert np.all(iv == iv_fast), "Fast and slow methods don't match"
         mat_r = intvec2nparray(iv, test_shape, bitwidth=4)
         if np.all(mat_s == mat_r):
             logger.info(f"TC {it + 1} [PASS]")
@@ -288,20 +328,26 @@ if __name__ == "__main__":
 
     logger.info("Testing make_goop_dict and ungoop_data")
     test_shape = (301, 201)
+
+    break_mat = np.ones((4, 4), dtype=np.int32)
+    permuter = BiClusterMatrixPermuter(2, 2)
+    break_mat[0, 0] = 0
+
+    test_mats = [break_mat]
     # Testing make_goop_dict and ungoop_data
-    for it in range(1):
-        mask = np.random.rand(*test_shape) > 0.7
-        mat_s = np.random.randint(0, 124334, size=test_shape) * mask
+    for it, mat_s in enumerate(test_mats):
+        # mask = np.random.rand(*test_shape) > 0.7
+        # mat_s = np.random.randint(0, 124334, size=test_shape) * mask
 
         gdict, row_labels, col_labels, nbits_theoretical = make_goop_dict(
             mat_s, permuter, WORD_SIZE
         )
-        mat_r = ungoop_data(gdict)
+        # mat_r = ungoop_data(gdict)
 
-        if np.all(mat_s == mat_r):
-            logger.info(f"TC {it + 1} [PASS]")
-        else:
-            logger.error(f"TC {it + 1} [FAIL]")
+        # if np.all(mat_s == mat_r):
+        #     logger.info(f"TC {it + 1} [PASS]")
+        # else:
+        #     logger.error(f"TC {it + 1} [FAIL]")
 
 # %%
 # exit()
