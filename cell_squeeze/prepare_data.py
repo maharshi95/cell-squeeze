@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 import os, glob, scipy
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, save_npz
 from tqdm.auto import tqdm
 import random as default_random
 from itertools import product
@@ -93,9 +93,10 @@ def save(mat, num, args, sparsity=None):
                 + ".npz",
             )
 
-    np.savez_compressed(
-        path, data=mat.data, indices=mat.indices, indptr=mat.indptr, shape=mat.shape
-    )
+    # np.savez_compressed(
+    #     path, data=mat.data, indices=mat.indices, indptr=mat.indptr, shape=mat.shape
+    # )
+    save_npz(path, mat)
 
 
 def load(path):
@@ -109,7 +110,7 @@ def remove_zero_rc(mat):
 
 def original(args):
     matrix_dirs = glob.glob(args.orig_path + "*raw_feature_bc_matrix")
-    assert len(matrix_dirs) == 1
+    assert len(matrix_dirs) == 1, "More than one matrix found"
     in_path = matrix_dirs[0]
 
     mat = scipy.io.mmread(os.path.join(in_path, "matrix.mtx.gz")).tocsc()

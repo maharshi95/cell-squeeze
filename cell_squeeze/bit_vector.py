@@ -17,6 +17,7 @@ dtypes = {
     64: np.uint64,
 }
 
+
 def int_vector_to_long_int(vector, bit_length=64):
     assert bit_length % 8 == 0, "bit_length must be a multiple of 8"
     segments = []
@@ -141,7 +142,7 @@ class IntVector:
             intvec.bitvec[start:end] = BitVector(intVal=word, size=(end - start))
             end = start
         return intvec
-    
+
     @classmethod
     def from_numpy(self, array: np.ndarray):
         bitwidth = np.max(array).bit_length()
@@ -149,7 +150,6 @@ class IntVector:
         for i, elem in enumerate(array):
             int_vec[i] = elem
         return int_vec
-        
 
     def __repr__(self):
         return f"IntVector({len(self)}, {self.bit_width})"
@@ -165,24 +165,20 @@ class IntVector:
 
 
 # %%
-N = 20
-bitwidth = 3
-b = IntVector(N, bitwidth)
+if __name__ == "__main__":
+    N = 20
+    bitwidth = 3
+    b = IntVector(N, bitwidth)
 
-np.random.seed(0)
-for i in range(N):
-    b[i] = np.random.randint(0, 2**3)
-print(b.to_numpy())
-nbits = 32
-# print(b.bitword_array(nbits))
-b2 = IntVector.from_bitword_array(b.bitword_array(nbits), bitwidth)
-print(b[:])
-print(b2[1:5])
-print(b == b2[1 : N + 1])
-# %%
-b.bitvec.byteArray
-
-# %%
-
-def make_goopdict(mat: np.ndarray):
-    
+    np.random.seed(0)
+    for i in range(N):
+        b[i] = np.random.randint(0, 2**3)
+    print(b.to_numpy())
+    nbits = 32
+    # print(b.bitword_array(nbits))
+    b2 = IntVector.from_bitword_array(b.bitword_array(nbits), bitwidth)
+    print(b[:])
+    print(b2[1:5])
+    print(b == b2[1 : N + 1])
+    # %%
+    b.bitvec.byteArray

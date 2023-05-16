@@ -76,11 +76,15 @@ class BiClusterMatrixPermuter(MatrixPermuter):
             n_clusters=(n_row_clusters, n_col_clusters), random_state=0
         )
 
-    def __call__(self, matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def __call__(self, matrix: np.ndarray) -> np.ndarray:
+        print("fitting...")
         self.model.fit(matrix)
-        self.row_perm_ = np.argsort(self.model.row_labels_)
-        self.col_perm_ = np.argsort(self.model.column_labels_)
-        permuted_data = matrix[self.row_perm_][:, self.col_perm_]
+        print("fitting done")
+        self.row_labels_ = self.model.row_labels_
+        self.col_labels_ = self.model.column_labels_
+        row_perm_ = np.argsort(self.model.row_labels_)
+        col_perm_ = np.argsort(self.model.column_labels_)
+        permuted_data = matrix[row_perm_][:, col_perm_]
         return permuted_data
 
 
