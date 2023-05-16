@@ -130,13 +130,10 @@ class IntVector:
     def from_bitword_array(cls, bitword_array: np.ndarray, bit_width: int):
         word_length = np.dtype(bitword_array.dtype).itemsize * 8
         n_elem = bitword_array.size * word_length // bit_width
-        print("bitword_array", bitword_array.size)
-        print(n_elem)
         intvec = cls(n_elem, bit_width)
         end = intvec.bitvec.length()
         for i, word in enumerate(bitword_array[::-1]):
             start = end - word_length
-            print(start, end, word)
             if start < 0:
                 start = 0
             intvec.bitvec[start:end] = BitVector(intVal=word, size=(end - start))
