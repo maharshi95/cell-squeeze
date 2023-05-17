@@ -171,8 +171,8 @@ def main(args):
 
     # Load the matrix
     logger.info("Loading the matrix.")
-    mat = np.array(load_npz(args.matrix_path).todense())
-
+    #mat = np.array(load_npz(args.matrix_path).todense())
+    mat = np.load(args.matrix_path)
     # compute the sizes of the matrices
     logger.info("Computing the sizes of the matrices.")
     sizes = compute_sizes(mat, num_row_clusters, num_col_clusters)
@@ -209,11 +209,11 @@ if __name__ == "__main__":
 
 
     slaunch scripts/hyperparam_sweep.py \
-    --exp_name="csqz_test" --sweep matrix_path n_row_clusters n_col_clusters \
+    --exp_name="csqz_test" --sweep n_row_clusters n_col_clusters \
     --slurm_profile=scavenger \
     --slurm_time="5:00:00" --slurm_mem=32G \
-    --output_dir="compression_results_new" \
-    --n_row_clusters 2 5 10 --n_col_clusters 2 5 10 \
-    --matrix_path .../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/1000_1000_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/2500_2500_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/5000_5000_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/10000_10000_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/20000_20000_0.npz
+    --output_dir="/fs/clip-scratch/cqz/" \
+    --n_row_clusters  2 5 --n_col_clusters  2 5 \
+    --matrix_path outputs/whole.npz
 
     """
