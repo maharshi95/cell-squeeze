@@ -39,6 +39,7 @@ def add_arguments(parser: Optional[argparse.ArgumentParser] = None,) -> argparse
         type=int,
         help="Word size to use to build goop dict.",
         required=False,
+        default=32,
     )
 
     parser.add_argument(
@@ -69,17 +70,16 @@ def add_arguments(parser: Optional[argparse.ArgumentParser] = None,) -> argparse
 def find_default_bits(mat):
     # find number of bits needed to store in matrix market format 
     # theoretically 
-    max_bitsize = int(np.max(mat)).bit_length()
+    max_bitsize = 64
     num_nonzero_elems = np.count_nonzero(mat)
-    max_coord_size = int(np.max(mat.shape)).bit_length()
     N_COORDS = 2 
 
     # number of bits needed to store the coordinates 
-    coord_bits = max_coord_size * N_COORDS * num_nonzero_elems
+    coord_bits = num_nonzero_elems * N_COORDS * max_bitsize
     # number of bits needed to store the values
     value_bits = max_bitsize * num_nonzero_elems
     
-    return value_bits + coord_bits 
+    return value_bits + coord_bits
     
 
 def compute_sizes(mat, n_row_clusters, n_col_clusters):
@@ -93,9 +93,9 @@ def compute_sizes(mat, n_row_clusters, n_col_clusters):
     logger.info(f"Default bits: {default_bits}")
 
     # compute size of goop 
-    np.savez_compressed("/tmp/goop_c.npz", **goop_dict, compressed=True)
+    np.savez_compressed("/tmp/goop_c.npz", **goop_dict)
     goop_size = os.path.getsize("/tmp/goop_c.npz")
-    np.savez_compressed("/tmp/goop_uc.npz", **goop_dict, compressed=False)
+    np.savez("/tmp/goop_uc.npz", **goop_dict, compress=False)
     goop_size_uncompressed = os.path.getsize("/tmp/goop_uc.npz")
 
 
@@ -146,9 +146,7 @@ def compute_sizes(mat, n_row_clusters, n_col_clusters):
         "bsr_size": bsr_size,
         "bsr_size_uncompressed": bsr_size_uncompressed,
         "theoretical_size": n_bits_theoretical / 8,
-        "default_bits": default_bits / 8 ,
-        "row_labels": list(row_labels),
-        "col_labels": list(col_labels),
+        "default_bits": default_bits / 8
     }
     
 
@@ -188,10 +186,11 @@ def main(args):
                                      args.matrix_path, 
                                         output_dir)
 
-    # Save the sizes to the output path
-    logger.info("Saving the sizes to the output path.")
-    with open(output_path, "w") as f: 
-        json.dump(sizes, f, indent=4)
+    if not args.debug: 
+        # Save the sizes to the output path
+        logger.info("Saving the sizes to the output path.")
+        with open(output_path, "w") as f: 
+            json.dump(sizes, f, indent=4)
 
 
 if __name__ == "__main__": 
@@ -203,16 +202,18 @@ if __name__ == "__main__":
     single run script --- 
 
     python scripts/compute_sizes.py \
-    --n_row_clusters 2 --n_col_clusters 2 \
+    --n_row_clusters 2 --n_col_clusters 2 --debug True \
     --matrix_path "../prepared/1k_hgmm_3p_LT_raw_feature_bc_matrix/1000_1000_0.npz" \
+    --output_dir="/tmp/"
     
 
 
     slaunch scripts/hyperparam_sweep.py \
-    --exp_name="csqz_test" --sweep matrix_path \
+    --exp_name="csqz_test" --sweep matrix_path n_row_clusters n_col_clusters \
     --slurm_profile=scavenger \
-    --slurm_time="10:00:00" --slurm_mem=24G \
-    --output_dir="compression_results" \
-    --n_row_clusters 2 --n_col_clusters 2 \
-    --matrix_path "../prepared/1k_hgmm_3p_LT_raw_feature_bc_matrix/1000_1000_0.npz" "../prepared/1k_hgmm_3p_LT_raw_feature_bc_matrix/1000_1000_1.npz" "../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/1000_1000_2.npz" "../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/1000_1000_0.npz"
+    --slurm_time="5:00:00" --slurm_mem=32G \
+    --output_dir="compression_results_new" \
+    --n_row_clusters 2 5 10 --n_col_clusters 2 5 10 \
+    --matrix_path .../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/1000_1000_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/2500_2500_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/5000_5000_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/10000_10000_0.npz ../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/20000_20000_0.npz
+
     """
