@@ -4,8 +4,14 @@ import time
 import numpy as np
 from itertools import product
 from scipy.sparse import csr_matrix, csc_matrix, coo_matrix, save_npz, load_npz
-from base import BiClusterMatrixPermuter
-from utils import flatten_array_dict, unflatten_array_dict
+from cell_squeeze.base import BiClusterMatrixPermuter
+from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
+from cell_squeeze import bit_vector
+
+from cell_squeeze.base import BiClusterMatrixPermuter
+from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
+from cell_squeeze import bit_vector
+
 from tqdm import tqdm
 from typing import Any, Sequence
 from loguru import logger
@@ -13,7 +19,6 @@ import numpy as np
 from typing import Optional
 
 from importlib import reload
-import bit_vector
 
 bit_vector = reload(bit_vector)
 

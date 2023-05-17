@@ -4,27 +4,27 @@ from bz2 import compress
 import os
 import numpy as np
 from sklearn.cluster import SpectralBiclustering
-from base import BiClusterMatrixPermuter
+from cell_squeeze.base import BiClusterMatrixPermuter
 from scipy.sparse import load_npz
 from matplotlib import pyplot as plt
 from itertools import product
-from bit_vector import IntVector
+from cell_squeeze.bit_vector import IntVector
 from rich import print as rprint
 from scipy.sparse import csr_matrix, csc_matrix, coo_matrix, save_npz, load_npz
-from utils import flatten_array_dict, unflatten_array_dict
+from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
 from tqdm import tqdm
 from rich import print as rprint
 from typing import Any
 
 # %%
-permuter = BiClusterMatrixPermuter(2, 2)
+# permuter = BiClusterMatrixPermuter(2, 2)
 
-# %% Load matrix for experimentation
-data_path = (
-    "../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/5000_5000_0.npz"
-)
-np.random.seed(0)
-mat = np.array(load_npz(data_path).todense())
+# # %% Load matrix for experimentation
+# data_path = (
+#     "../prepared/1k_mouse_kidney_CNIK_3pv3_raw_feature_bc_matrix/5000_5000_0.npz"
+# )
+# np.random.seed(0)
+# mat = np.array(load_npz(data_path).todense())
 # %%
 
 
@@ -66,22 +66,22 @@ def sparse_goop_to_mat(sparse_goop: dict[str, Any], method: str = "csr"):
         raise NotImplementedError
 
 
-np.random.seed(0)
-R = np.random.rand(31, 23)
-R = (R > 0.8).astype(int) * np.random.randint(0, 10, size=(31, 23))
-Rs = csr_matrix(R)
-print(Rs.data.shape, Rs.indices.shape, Rs.indptr.shape)
-iv = array2intvec(R)[0]
-R2 = intvec2nparray(iv, R.shape)
-print(np.allclose(R, R2))
-g = mat_to_sparse_goop(R)
-R2 = sparse_goop_to_mat(g)
-np.allclose(R, R2)
+# np.random.seed(0)
+# R = np.random.rand(31, 23)
+# R = (R > 0.8).astype(int) * np.random.randint(0, 10, size=(31, 23))
+# Rs = csr_matrix(R)
+# print(Rs.data.shape, Rs.indices.shape, Rs.indptr.shape)
+# iv = array2intvec(R)[0]
+# R2 = intvec2nparray(iv, R.shape)
+# print(np.allclose(R, R2))
+# g = mat_to_sparse_goop(R)
+# R2 = sparse_goop_to_mat(g)
+# np.allclose(R, R2)
 
-# %%
+# # %%
 
 
-def make_goop_dict(mat: np.ndarray):
+def make_goop_dict(mat: np.ndarray, permuter: BiClusterMatrixPermuter):
     # mat shape: [N, M]
     non_zero_rows = np.where(mat.sum(axis=1) > 0)[0]
     non_zero_cols = np.where(mat.sum(axis=0) > 0)[0]
@@ -167,68 +167,69 @@ def ungoop_data(goop_dict: dict[str, tuple[int] | IntVector]):
     return mat
 
 
-# %%
-goop_dict = make_goop_dict(mat)
-goop_dict_flat = flatten_array_dict(goop_dict)
-rprint(goop_dict_flat.keys())
+if __name__ == "__main__":
+    
+    goop_dict = make_goop_dict(mat, permuter)
+    goop_dict_flat = flatten_array_dict(goop_dict)
+    rprint(goop_dict_flat.keys())
 
-# %%
-np.savez_compressed("/tmp/goop.npz", **goop_dict_flat, compressed=True)
-goop_size = os.path.getsize("/tmp/goop.npz")
-print("Goop size:", goop_size)
+    # %%
+    np.savez_compressed("/tmp/goop.npz", **goop_dict_flat, compressed=True)
+    goop_size = os.path.getsize("/tmp/goop.npz")
+    print("Goop size:", goop_size)
 
-gooped_bits = {**np.load("/tmp/goop.npz")}
-gooped_bits_unflat = unflatten_array_dict(gooped_bits)
-print(gooped_bits_unflat)
-mat_recon = ungoop_data(gooped_bits_unflat)
-print(np.allclose(mat, mat_recon))
+    gooped_bits = {**np.load("/tmp/goop.npz")}
+    gooped_bits_unflat = unflatten_array_dict(gooped_bits)
+    print(gooped_bits_unflat)
+    mat_recon = ungoop_data(gooped_bits_unflat)
+    print(np.allclose(mat, mat_recon))
 
-np.savez_compressed("/tmp/mat.npz", csr_matrix(mat))
-mat_size = os.path.getsize("/tmp/mat.npz")
-print("Mat size:", mat_size)
+    np.savez_compressed("/tmp/mat.npz", csr_matrix(mat))
+    mat_size = os.path.getsize("/tmp/mat.npz")
+    print("Mat size:", mat_size)
 
-# %%
-plt.spy(mat)
-# %%
+    # %%
+    plt.spy(mat)
+    # %%
 
-from scipy.sparse.csgraph import reverse_cuthill_mckee
-from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import reverse_cuthill_mckee
+    from scipy.sparse import csr_matrix
 
-p = reverse_cuthill_mckee(csr_matrix(mat))
-# %%
-plt.spy(mat[p][:, p])
-# %%
-
-
-# %%
+    p = reverse_cuthill_mckee(csr_matrix(mat))
+    # %%
+    plt.spy(mat[p][:, p])
+    # %%
 
 
-# Open the npz file
+    # %%
 
 
-# %%
-np.random.seed(42)
-A = np.random.randn(10, 10)
-A = (A > 0.8).astype(int) * np.random.randint(0, 10, size=(10, 10))
-print(A)
-# %%
-
-C = csr_matrix(A)
-print(C.indptr)
-print(C.indices)
-print(C.data)
-# %%
-# Reconstruct matrix from data, indices, indptr
-C2 = csr_matrix((C.data, C.indices, C.indptr))
-C2.todense()
-# %%
-np.all(C2.todense() == A)
-
-# %%
-from scipy.sparse import bsr_array
-
-# Count number of non-zero elements in A
-C.nnz
+    # Open the npz file
 
 
-# %%
+    # %%
+    np.random.seed(42)
+    A = np.random.randn(10, 10)
+    A = (A > 0.8).astype(int) * np.random.randint(0, 10, size=(10, 10))
+    print(A)
+    # %%
+
+    C = csr_matrix(A)
+    print(C.indptr)
+    print(C.indices)
+    print(C.data)
+    # %%
+    # Reconstruct matrix from data, indices, indptr
+    C2 = csr_matrix((C.data, C.indices, C.indptr))
+    C2.todense()
+    # %%
+    np.all(C2.todense() == A)
+
+    # %%
+    from scipy.sparse import bsr_array
+
+    # Count number of non-zero elements in A
+    C.nnz
+
+
+    # %%

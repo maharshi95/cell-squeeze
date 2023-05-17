@@ -8,7 +8,10 @@ import os
 from pathlib import Path
 import numpy as np 
 from scipy.sparse import load_npz, csr_matrix, csc_matrix, coo_matrix, bsr_matrix
-from cell_squeeze.benchmark import BiClusterMatrixPermuter, make_goop_dict, flatten_array_dict
+#from cell_squeeze.benchmark import BiClusterMatrixPermuter, make_goop_dict, flatten_array_dict
+from cell_squeeze.base import BiClusterMatrixPermuter
+from cell_squeeze.goop import make_goop_dict 
+
 from loguru import logger
 import json
 from typing import Any, Optional
@@ -83,18 +86,16 @@ def compute_sizes(mat, n_row_clusters, n_col_clusters):
     """Compute the sizes of the row and column clusters."""
     permuter = BiClusterMatrixPermuter(n_row_clusters, n_col_clusters)
     
-    
     logger.info("Biclustering and computing goop dict.")
-    goop_dict = make_goop_dict(mat, permuter)
-    goop_dict_flat = flatten_array_dict(goop_dict)
-     
+    goop_dict, row_labels, col_labels, n_bits_theoretical = make_goop_dict(mat, permuter)
+
     default_bits = find_default_bits(mat)
     logger.info(f"Default bits: {default_bits}")
 
     # compute size of goop 
-    np.savez_compressed("/tmp/goop_c.npz", **goop_dict_flat, compressed=True)
+    np.savez_compressed("/tmp/goop_c.npz", **goop_dict, compressed=True)
     goop_size = os.path.getsize("/tmp/goop_c.npz")
-    np.savez_compressed("/tmp/goop_uc.npz", **goop_dict_flat, compressed=False)
+    np.savez_compressed("/tmp/goop_uc.npz", **goop_dict, compressed=False)
     goop_size_uncompressed = os.path.getsize("/tmp/goop_uc.npz")
 
 
@@ -143,7 +144,11 @@ def compute_sizes(mat, n_row_clusters, n_col_clusters):
         "coo_size": coo_size,
         "coo_size_uncompressed": coo_size_uncompressed,
         "bsr_size": bsr_size,
-        "bsr_size_uncompressed": bsr_size_uncompressed
+        "bsr_size_uncompressed": bsr_size_uncompressed,
+        "theoretical_size": n_bits_theoretical / 8,
+        "default_bits": default_bits / 8 ,
+        "row_labels": list(row_labels),
+        "col_labels": list(col_labels),
     }
     
 
