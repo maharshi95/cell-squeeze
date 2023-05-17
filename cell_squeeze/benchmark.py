@@ -1,6 +1,5 @@
 # %%
 
-from bz2 import compress
 import os
 import numpy as np
 from sklearn.cluster import SpectralBiclustering
@@ -13,8 +12,13 @@ from rich import print as rprint
 from scipy.sparse import csr_matrix, csc_matrix, coo_matrix, save_npz, load_npz
 from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
 from tqdm import tqdm
-from rich import print as rprint
 from typing import Any
+
+from importlib import reload
+import bit_vector
+
+bit_vector = reload(bit_vector)
+from bit_vector import IntVector
 
 # %%
 # permuter = BiClusterMatrixPermuter(2, 2)
@@ -28,11 +32,13 @@ from typing import Any
 # %%
 
 
-def array2intvec(mat: np.ndarray, bitwidth: int = 32) -> tuple[IntVector, tuple[int]]:
+def array2intvec(
+    mat: np.ndarray, bitwidth: int, word_size: int
+) -> tuple[IntVector, tuple[int]]:
     int_vec = IntVector(mat.size, bitwidth)
     for i, elem in enumerate(mat.reshape(-1)):
         int_vec[i] = elem
-    return int_vec, mat.shape
+    return int_vec.bitword_array(word_size), mat.shape
 
 
 def intvec2nparray(intvec: IntVector, shape: tuple[int]) -> np.ndarray:
@@ -130,24 +136,18 @@ def ungoop_data(goop_dict: dict[str, tuple[int] | IntVector]):
     sparse_goops = goop_dict["s"]
     mat = np.zeros(shape=(n_rows, n_cols))
 
-    row_labels = intvec2nparray(
-        IntVector.from_bitword_array(goop_dict["r"], 32),
-        (n_rows,),
-    )
+    row_labels = IntVector.from_bitword_array(goop_dict["r"], 32, n_rows)
+    row_labels = intvec2nparray(row_labels, (n_rows,))
 
-    col_labels = intvec2nparray(
-        IntVector.from_bitword_array(goop_dict["c"], 32),
-        (n_cols,),
-    )
+    col_labels = IntVector.from_bitword_array(goop_dict["c"], 32, n_cols)
+    col_labels = intvec2nparray(col_labels, (n_cols,))
 
     n_row_clusters = len(np.unique(row_labels))
     n_col_clusters = len(np.unique(col_labels))
     n_clusters = n_row_clusters * n_col_clusters
 
-    cluster_mins = intvec2nparray(
-        IntVector.from_bitword_array(goop_dict["m"], 32),
-        (n_clusters,),
-    )
+    cluster_mins = IntVector.from_bitword_array(goop_dict["m"], 32, (n_clusters,))
+    cluster_mins = intvec2nparray(goop_dict["m"], (n_clusters,))
 
     clusters = list(product(range(n_row_clusters), range(n_col_clusters)))
     for l_row, l_col in tqdm(clusters):

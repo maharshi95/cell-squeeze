@@ -3,24 +3,13 @@
 import time
 import numpy as np
 from itertools import product
-from scipy.sparse import csr_matrix, csc_matrix, coo_matrix, save_npz, load_npz
-from cell_squeeze.base import BiClusterMatrixPermuter
-from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
-from cell_squeeze import bit_vector
-
-from cell_squeeze.base import BiClusterMatrixPermuter
-from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
-from cell_squeeze import bit_vector
-
+from scipy.sparse import csr_matrix
 from tqdm import tqdm
 from typing import Any, Sequence
 from loguru import logger
-import numpy as np
-from typing import Optional
-
-from importlib import reload
-
-bit_vector = reload(bit_vector)
+from cell_squeeze.base import BiClusterMatrixPermuter
+from cell_squeeze.utils import flatten_array_dict, unflatten_array_dict
+from cell_squeeze import bit_vector
 
 
 IntVec = bit_vector.IntVector
@@ -287,7 +276,7 @@ if __name__ == "__main__":
     WORD_SIZE = 32
 
     logger.info("testing speeds for array2intvec and array2intvec_fast")
-    test_shape = (1000, 1000)
+    test_shape = (500, 500)
     np.random.seed(0)
     mask = np.random.rand(*test_shape) > 0.7
     mat_s = np.random.randint(0, 16, size=test_shape) * mask
@@ -332,13 +321,16 @@ if __name__ == "__main__":
             logger.error(f"TC {it + 1} [FAIL]")
 
     logger.info("Testing make_goop_dict and ungoop_data")
-    test_shape = (301, 201)
+    test_shape = (10000, 10000)
 
     break_mat = np.ones((4, 4), dtype=np.int32)
-    permuter = BiClusterMatrixPermuter(2, 2)
+    permuter = BiClusterMatrixPermuter(5, 5)
     break_mat[0, 0] = 0
 
-    test_mats = [break_mat]
+    mask = np.random.rand(*test_shape) > 0.7
+    mat_s = np.random.randint(0, 16, size=test_shape) * mask
+
+    test_mats = [mat_s]
     # Testing make_goop_dict and ungoop_data
     for it, mat_s in enumerate(test_mats):
         # mask = np.random.rand(*test_shape) > 0.7
